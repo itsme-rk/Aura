@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1049501064665",
+    "project_id": "aura-os-181a5",
+    "storage_bucket": "aura-os-181a5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1049501064665:android:16f35c9dcb0ccd5092cdc8",
+        "android_client_info": {
+          "package_name": "com.aura.personalos"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1049501064665-gluh181ignrur6dhg94gor5k3gjh7mmv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAL4inbJOEH11ZikdSeQNSCszCxxejnWZc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1049501064665-gluh181ignrur6dhg94gor5k3gjh7mmv.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
