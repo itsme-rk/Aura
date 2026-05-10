@@ -15,6 +15,46 @@ export {
   selectWorkoutLoading,
   selectWorkoutError,
 } from './workoutStore';
-export { useNutritionStore, selectTodayLog, selectNutritionGoals, selectNutritionLoading, selectCaloriesRemaining } from './nutritionStore';
-export { useOfflineStore, selectIsOnline, selectIsSyncing, selectQueueSize, selectHasPendingSync } from './offlineStore';
+export {
+  useNutritionStore,
+  selectTodayLogs,
+  selectTodayProtein,
+  selectTodayCalories,
+  selectTodaySummary,
+  selectFoodLibrary,
+  selectRecentFoods,
+  selectNutritionGoals,
+  selectProteinGoalMet,
+  selectProteinRemaining,
+  selectProteinProgress,
+  selectNutritionLoading,
+  selectTodayLog,
+  selectCaloriesRemaining,
+} from './nutritionStore';
+export {
+  useOfflineStore,
+  selectIsOnline,
+  selectIsSyncing,
+  selectQueueSize,
+  selectHasPendingSync,
+  selectSyncProgress,
+  selectFailedCount,
+  selectLastSyncAt,
+  selectSyncStatus,
+} from './offlineStore';
 export { useUIStore, selectIsDarkMode, selectGlobalLoading, selectToasts, selectActiveModal } from './uiStore';
+export {
+  useStreakStore,
+  selectWorkoutStreak,
+  selectProteinStreak,
+  selectActivityStreak,
+  selectStreakLoading,
+} from './streakStore';
+export {
+  useReminderStore,
+  selectActiveReminders,
+  selectReminderSettings,
+  selectHasReminders,
+  selectReminderCount,
+} from './reminderStore';
+

@@ -5,7 +5,7 @@
 //
 
 import { useEffect, useRef } from 'react';
-import { useAuthStore } from '../../store';
+import { useAuthStore } from '../store';
 
 /**
  * Initialize auth and subscribe to Firebase auth state.

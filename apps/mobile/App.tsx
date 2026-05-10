@@ -1,11 +1,11 @@
 // ─── Aura App Entry ───────────────────────────────────────
 //
 // Root component with auth gating and screen routing.
-// Uses simple state-based navigation until expo-router is added.
+// Integrates: offline sync, reminders, streaks, nutrition.
 //
 
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LoginScreen, RegisterScreen } from './src/features/auth';
 import {
@@ -14,8 +14,21 @@ import {
   ExerciseDetailScreen,
   ProgressScreen,
 } from './src/features/workout';
+import {
+  NutritionTodayScreen,
+  AddProteinScreen,
+  FoodSearchScreen,
+} from './src/features/nutrition';
 import { useAuthInit, useAuth } from './src/hooks/useAuth';
 import { useWorkoutStore } from './src/store';
+import { useNutritionStore } from './src/store/nutritionStore';
+import { useStreakStore } from './src/store/streakStore';
+import { useOfflineStore } from './src/store/offlineStore';
+import { useReminderStore } from './src/store/reminderStore';
+import { onEvent } from './src/services/events/emitEvent';
+import { SyncStatusBar } from './src/components/SyncStatusBar';
+import { ReminderBanner } from './src/components/ReminderBanner';
+import { COLORS } from './src/constants/theme';
 
 // ─── Screen Types ─────────────────────────────────────────
 
@@ -23,7 +36,12 @@ type AppScreen =
   | { name: 'home' }
   | { name: 'addWorkout'; params?: { name?: string; planId?: string; dayLabel?: string } }
   | { name: 'exerciseDetail'; params: { exerciseId: string } }
-  | { name: 'progress' };
+  | { name: 'progress' }
+  | { name: 'nutrition' }
+  | { name: 'addProtein' }
+  | { name: 'foodSearch' };
+
+type TabId = 'workout' | 'nutrition' | 'news' | 'profile';
 
 // ─── Auth Gate ────────────────────────────────────────────
 
@@ -41,50 +59,169 @@ function AuthGate() {
 function MainApp() {
   const { user, logout } = useAuth();
   const [screen, setScreen] = useState<AppScreen>({ name: 'home' });
-  const loadExercises = useWorkoutStore((s) => s.loadExercises);
+  const [activeTab, setActiveTab] = useState<TabId>('workout');
 
-  // Load exercises on mount
-  React.useEffect(() => {
-    if (user?.uid) {
-      loadExercises(user.uid);
-    }
+  // ─── Stores ─────────────────────────────────────────────
+  const loadExercises = useWorkoutStore((s) => s.loadExercises);
+  const workoutLogs = useWorkoutStore((s) => s.logs);
+
+  const fetchTodayLogs = useNutritionStore((s) => s.fetchTodayLogs);
+  const todayProtein = useNutritionStore((s) => s.todayProtein);
+  const proteinGoalMet = useNutritionStore((s) => s.proteinGoalMet);
+  const nutritionGoals = useNutritionStore((s) => s.goals);
+
+  const fetchStreaks = useStreakStore((s) => s.fetchStreaks);
+  const handleWorkoutLogged = useStreakStore((s) => s.handleWorkoutLogged);
+  const handleProteinGoalReached = useStreakStore((s) => s.handleProteinGoalReached);
+  const validateAndRefresh = useStreakStore((s) => s.validateAndRefresh);
+  const workoutStreak = useStreakStore((s) => s.workoutStreak);
+  const proteinStreak = useStreakStore((s) => s.proteinStreak);
+
+  const initOffline = useOfflineStore((s) => s.initialize);
+
+  const loadReminderSettings = useReminderStore((s) => s.loadSettings);
+  const loadActiveReminders = useReminderStore((s) => s.loadActiveReminders);
+  const evaluateReminders = useReminderStore((s) => s.evaluate);
+
+  // ─── Initialize everything on mount ─────────────────────
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    // Load all data
+    loadExercises(user.uid);
+    fetchTodayLogs(user.uid);
+    fetchStreaks(user.uid);
+    validateAndRefresh();
+
+    // Initialize offline sync system
+    const cleanupOffline = initOffline();
+
+    // Load reminder state
+    loadReminderSettings();
+    loadActiveReminders();
+
+    return () => {
+      cleanupOffline();
+    };
   }, [user?.uid]);
 
+  // ─── Event Listeners for Streak Updates ─────────────────
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const unsubWorkout = onEvent('WORKOUT_COMPLETED', () => {
+      handleWorkoutLogged(user.uid);
+    });
+
+    const unsubProtein = onEvent('PROTEIN_GOAL_REACHED', () => {
+      handleProteinGoalReached(user.uid);
+    });
+
+    return () => {
+      unsubWorkout();
+      unsubProtein();
+    };
+  }, [user?.uid]);
+
+  // ─── Reminder Evaluation (on foreground / periodic) ─────
+  const appState = useRef(AppState.currentState);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const sub = AppState.addEventListener('change', (nextState) => {
+      // Evaluate reminders when app comes to foreground
+      if (appState.current.match(/inactive|background/) && nextState === 'active') {
+        const today = new Date().toISOString().split('T')[0];
+        const hasWorkoutToday = workoutLogs.some((l) => {
+          const logDate = new Date(l.startedAt).toISOString().split('T')[0];
+          return logDate === today;
+        });
+
+        evaluateReminders({
+          hasWorkoutToday,
+          workoutStreak,
+          todayProtein,
+          proteinTarget: nutritionGoals.dailyProteinTarget,
+          proteinStreak,
+        });
+      }
+      appState.current = nextState;
+    });
+
+    return () => sub.remove();
+  }, [user?.uid, workoutLogs.length, todayProtein, workoutStreak, proteinStreak]);
+
+  // ─── Navigation ─────────────────────────────────────────
   const navigate = useCallback((s: AppScreen) => setScreen(s), []);
 
+  const handleTabPress = useCallback((tab: TabId) => {
+    setActiveTab(tab);
+    if (tab === 'workout') {
+      setScreen({ name: 'home' });
+    } else if (tab === 'nutrition') {
+      setScreen({ name: 'nutrition' });
+    } else if (tab === 'profile') {
+      logout();
+    }
+  }, [logout]);
+
   // ─── Render Current Screen ──────────────────────────────
-  switch (screen.name) {
-    case 'addWorkout':
-      return (
-        <AddWorkoutScreen
-          initialName={screen.params?.name}
-          initialPlanId={screen.params?.planId}
-          initialDayLabel={screen.params?.dayLabel}
-          onComplete={() => navigate({ name: 'home' })}
-          onDiscard={() => navigate({ name: 'home' })}
-        />
-      );
+  const renderScreen = () => {
+    switch (screen.name) {
+      case 'addWorkout':
+        return (
+          <AddWorkoutScreen
+            initialName={screen.params?.name}
+            initialPlanId={screen.params?.planId}
+            initialDayLabel={screen.params?.dayLabel}
+            onComplete={() => navigate({ name: 'home' })}
+            onDiscard={() => navigate({ name: 'home' })}
+          />
+        );
 
-    case 'exerciseDetail':
-      return (
-        <ExerciseDetailScreen
-          exerciseId={screen.params.exerciseId}
-          onBack={() => navigate({ name: 'home' })}
-        />
-      );
+      case 'exerciseDetail':
+        return (
+          <ExerciseDetailScreen
+            exerciseId={screen.params.exerciseId}
+            onBack={() => navigate({ name: 'home' })}
+          />
+        );
 
-    case 'progress':
-      return (
-        <ProgressScreen
-          onBack={() => navigate({ name: 'home' })}
-          onViewExercise={(id) => navigate({ name: 'exerciseDetail', params: { exerciseId: id } })}
-        />
-      );
+      case 'progress':
+        return (
+          <ProgressScreen
+            onBack={() => navigate({ name: 'home' })}
+            onViewExercise={(id) => navigate({ name: 'exerciseDetail', params: { exerciseId: id } })}
+          />
+        );
 
-    case 'home':
-    default:
-      return (
-        <View style={styles.mainContainer}>
+      case 'nutrition':
+        return (
+          <NutritionTodayScreen
+            onAddProtein={() => navigate({ name: 'addProtein' })}
+            onSearchFood={() => navigate({ name: 'foodSearch' })}
+          />
+        );
+
+      case 'addProtein':
+        return (
+          <AddProteinScreen
+            onComplete={() => navigate({ name: 'nutrition' })}
+            onSearchFood={() => navigate({ name: 'foodSearch' })}
+          />
+        );
+
+      case 'foodSearch':
+        return (
+          <FoodSearchScreen
+            onComplete={() => navigate({ name: 'nutrition' })}
+          />
+        );
+
+      case 'home':
+      default:
+        return (
           <WorkoutTodayScreen
             onStartWorkout={(name, planId, dayLabel) =>
               navigate({ name: 'addWorkout', params: { name, planId, dayLabel } })
@@ -94,29 +231,56 @@ function MainApp() {
               navigate({ name: 'exerciseDetail', params: { exerciseId: id } })
             }
           />
+        );
+    }
+  };
 
-          {/* Bottom Nav Bar */}
-          <View style={styles.bottomNav}>
-            <TouchableOpacity style={styles.navItem}>
-              <Text style={[styles.navIcon, styles.navActive]}>🏋️</Text>
-              <Text style={[styles.navLabel, styles.navActive]}>Workout</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem} disabled>
-              <Text style={styles.navIcon}>🥗</Text>
-              <Text style={styles.navLabel}>Nutrition</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem} disabled>
-              <Text style={styles.navIcon}>📰</Text>
-              <Text style={styles.navLabel}>News</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.navItem} onPress={logout}>
-              <Text style={styles.navIcon}>👤</Text>
-              <Text style={styles.navLabel}>Profile</Text>
-            </TouchableOpacity>
-          </View>
+  const hideBottomNav = ['addWorkout', 'exerciseDetail', 'progress', 'addProtein', 'foodSearch'].includes(screen.name);
+  const showIndicators = !hideBottomNav;
+
+  return (
+    <View style={styles.mainContainer}>
+      {/* Sync Status Bar */}
+      {showIndicators && <SyncStatusBar />}
+
+      {/* Reminder Banners */}
+      {showIndicators && screen.name === 'home' && <ReminderBanner />}
+
+      {/* Main Content */}
+      {renderScreen()}
+
+      {/* Bottom Nav Bar */}
+      {!hideBottomNav && (
+        <View style={styles.bottomNav}>
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={() => handleTabPress('workout')}
+          >
+            <Text style={[styles.navIcon, activeTab === 'workout' && styles.navActive]}>🏋️</Text>
+            <Text style={[styles.navLabel, activeTab === 'workout' && styles.navActive]}>Workout</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={() => handleTabPress('nutrition')}
+          >
+            <Text style={[styles.navIcon, activeTab === 'nutrition' && styles.navActive]}>🥗</Text>
+            <Text style={[styles.navLabel, activeTab === 'nutrition' && styles.navActive]}>Nutrition</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navItem} disabled>
+            <Text style={styles.navIcon}>📰</Text>
+            <Text style={styles.navLabel}>News</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.navItem}
+            onPress={() => handleTabPress('profile')}
+          >
+            <Text style={styles.navIcon}>👤</Text>
+            <Text style={styles.navLabel}>Profile</Text>
+          </TouchableOpacity>
         </View>
-      );
-  }
+      )}
+    </View>
+  );
 }
 
 // ─── Loading Screen ───────────────────────────────────────

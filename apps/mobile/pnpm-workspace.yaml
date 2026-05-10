@@ -1,7 +1,0 @@
-allowBuilds:
-  '@firebase/util': true
-  protobufjs: true
-nodeLinker: hoisted
-packages:
-  - "apps/*"
-  - "packages/*"

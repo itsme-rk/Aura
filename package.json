@@ -1,25 +1,13 @@
 {
-  "name": "aura",
-  "private": true,
+  "name": "aura-monorepo",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "^11.0.9",
-      "onFail": "download"
-    }
-  },
-  "type": "module",
-  "dependencies": {
-    "turbo": "^2.9.10",
-    "typescript": "^6.0.3"
+    "mobile": "pnpm --filter mobile",
+    "web": "pnpm --filter web",
+    "clean": "pnpm -r exec rm -rf node_modules .expo dist build && rm -rf node_modules"
   }
 }

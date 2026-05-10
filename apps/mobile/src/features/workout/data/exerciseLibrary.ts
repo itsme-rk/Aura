@@ -4,7 +4,7 @@
 // Users can add custom exercises on top of this.
 //
 
-import { Exercise, MuscleGroup, Equipment } from '../../types';
+import { Exercise, MuscleGroup, Equipment } from '../../../types';
 
 // ─── Default Library ──────────────────────────────────────
 

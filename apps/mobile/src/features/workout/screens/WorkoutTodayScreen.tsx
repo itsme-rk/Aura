@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useWorkoutStore } from '../../../store';
+import { useStreakStore } from '../../../store/streakStore';
+import { useNutritionStore } from '../../../store/nutritionStore';
 import { useAuth } from '../../../hooks/useAuth';
 import { getTodaysWorkout } from '../services/workout.service';
 import { MUSCLE_GROUP_LABELS } from '../data/exerciseLibrary';
@@ -35,11 +37,20 @@ export function WorkoutTodayScreen({
   const { user } = useAuth();
   const activePlan = useWorkoutStore((s) => s.activePlan);
   const logs = useWorkoutStore((s) => s.logs);
-  const streak = useWorkoutStore((s) => s.streak);
   const weeklyCount = useWorkoutStore((s) => s.weeklyCount);
   const activeSession = useWorkoutStore((s) => s.activeSession);
   const fetchPlans = useWorkoutStore((s) => s.fetchPlans);
   const fetchLogs = useWorkoutStore((s) => s.fetchLogs);
+
+  // Streak data
+  const workoutStreak = useStreakStore((s) => s.workoutStreak);
+  const proteinStreak = useStreakStore((s) => s.proteinStreak);
+  const activityStreak = useStreakStore((s) => s.activityStreak);
+
+  // Nutrition quick info
+  const todayProtein = useNutritionStore((s) => s.todayProtein);
+  const proteinGoalMet = useNutritionStore((s) => s.proteinGoalMet);
+  const goals = useNutritionStore((s) => s.goals);
 
   useEffect(() => {
     if (user?.uid) {
@@ -76,20 +87,41 @@ export function WorkoutTodayScreen({
               </TouchableOpacity>
             </View>
 
-            {/* Stats Row */}
+            {/* Streak Cards */}
             <View style={styles.statsRow}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{streak}</Text>
-                <Text style={styles.statLabel}>Day Streak</Text>
+              <View style={[styles.statCard, workoutStreak > 0 && styles.statCardActive]}>
+                <Text style={styles.statEmoji}>🏋️</Text>
+                <Text style={styles.statValue}>{workoutStreak}</Text>
+                <Text style={styles.statLabel}>Workout</Text>
+              </View>
+              <View style={[styles.statCard, proteinStreak > 0 && styles.statCardProtein]}>
+                <Text style={styles.statEmoji}>🥩</Text>
+                <Text style={styles.statValue}>{proteinStreak}</Text>
+                <Text style={styles.statLabel}>Protein</Text>
+              </View>
+              <View style={[styles.statCard, activityStreak > 0 && styles.statCardActivity]}>
+                <Text style={styles.statEmoji}>🔥</Text>
+                <Text style={styles.statValue}>{activityStreak}</Text>
+                <Text style={styles.statLabel}>Active</Text>
               </View>
               <View style={styles.statCard}>
+                <Text style={styles.statEmoji}>📅</Text>
                 <Text style={styles.statValue}>{weeklyCount}</Text>
                 <Text style={styles.statLabel}>This Week</Text>
               </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{logs.length}</Text>
-                <Text style={styles.statLabel}>Total</Text>
-              </View>
+            </View>
+
+            {/* Protein Quick Status */}
+            <View style={[
+              styles.proteinStatusBar,
+              proteinGoalMet && styles.proteinStatusBarMet,
+            ]}>
+              <Text style={styles.proteinStatusText}>
+                {proteinGoalMet
+                  ? `✅ Protein goal reached! ${Math.round(todayProtein)}g / ${goals.dailyProteinTarget}g`
+                  : `🥩 Protein: ${Math.round(todayProtein)}g / ${goals.dailyProteinTarget}g`
+                }
+              </Text>
             </View>
 
             {/* Resume active session */}
@@ -299,17 +331,53 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     borderWidth: 1,
     borderColor: COLORS.border,
-    padding: SPACING.md,
+    padding: SPACING.sm,
     alignItems: 'center',
   },
+  statCardActive: {
+    borderColor: COLORS.primary + '66',
+    backgroundColor: COLORS.primary + '12',
+  },
+  statCardProtein: {
+    borderColor: COLORS.accent + '66',
+    backgroundColor: COLORS.accent + '12',
+  },
+  statCardActivity: {
+    borderColor: COLORS.warning + '66',
+    backgroundColor: COLORS.warning + '12',
+  },
+  statEmoji: {
+    fontSize: 16,
+    marginBottom: 2,
+  },
   statValue: {
-    ...TYPOGRAPHY.h2,
+    ...TYPOGRAPHY.h3,
     color: COLORS.primary,
   },
   statLabel: {
     ...TYPOGRAPHY.small,
     color: COLORS.textMuted,
-    marginTop: SPACING.xs,
+    marginTop: 2,
+  },
+
+  // Protein Status
+  proteinStatusBar: {
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    marginBottom: SPACING.lg,
+    alignItems: 'center',
+  },
+  proteinStatusBarMet: {
+    borderColor: COLORS.success + '44',
+    backgroundColor: COLORS.success + '12',
+  },
+  proteinStatusText: {
+    ...TYPOGRAPHY.caption,
+    color: COLORS.textSecondary,
   },
 
   // Resume

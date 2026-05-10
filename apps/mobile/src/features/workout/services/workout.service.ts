@@ -11,9 +11,9 @@ import {
   deleteDocument,
   getUserDocuments,
   queryDocuments,
-} from '../../services/firestore.service';
-import { enqueue } from '../offline/queue';
-import { emitEvent } from '../../services/events/emitEvent';
+} from '../../../services/firestore.service';
+import { enqueue } from '../../offline/queue';
+import { emitEvent } from '../../../services/events/emitEvent';
 import {
   Exercise,
   WorkoutPlan,
@@ -21,7 +21,7 @@ import {
   WorkoutSummary,
   RecentExercise,
   MuscleGroup,
-} from '../../types';
+} from '../../../types';
 
 // ─── Collections ──────────────────────────────────────────
 
@@ -109,7 +109,7 @@ export async function deletePlan(planId: string): Promise<void> {
 }
 
 /** Get today's planned workout from active plan. */
-export function getTodaysWorkout(plan: WorkoutPlan): import('../../types').WorkoutDay | null {
+export function getTodaysWorkout(plan: WorkoutPlan): import('../../../types').WorkoutDay | null {
   const today = new Date().getDay(); // 0=Sunday
   return plan.days.find((d) => d.dayOfWeek === today) ?? null;
 }
