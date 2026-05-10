@@ -15,13 +15,17 @@ export type AuraEventType =
   | 'ACTIVITY_LOGGED'
   | 'PRODUCT_SCANNED'
   | 'NEWS_FETCHED'
+  | 'ARTICLE_OPENED'
+  | 'ARTICLE_SAVED'
   | 'INSIGHT_GENERATED'
   | 'SYNC_STARTED'
   | 'SYNC_COMPLETED'
   | 'SYNC_FAILED'
   | 'OFFLINE_SYNC_COMPLETED'
   | 'OFFLINE_QUEUE_UPDATED'
-  | 'REMINDER_TRIGGERED';
+  | 'REMINDER_TRIGGERED'
+  | 'SEARCH_PERFORMED'
+  | 'SEARCH_RESULT_OPENED';
 
 export interface AuraEvent<T = unknown> {
   type: AuraEventType;

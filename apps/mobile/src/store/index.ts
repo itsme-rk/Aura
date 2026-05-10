@@ -57,4 +57,20 @@ export {
   selectHasReminders,
   selectReminderCount,
 } from './reminderStore';
-
+export {
+  useNewsStore,
+  selectNewsArticles,
+  selectSavedArticles,
+  selectReadLaterArticles,
+  selectNewsCategory,
+  selectNewsLoading,
+  selectFilteredArticles,
+} from './newsStore';
+export {
+  useSearchStore,
+  selectSearchQuery,
+  selectSearchResults,
+  selectSearchDomain,
+  selectRecentSearches,
+  selectIsSearching,
+} from './searchStore';

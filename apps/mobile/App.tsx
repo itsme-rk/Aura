@@ -1,7 +1,7 @@
 // ─── Aura App Entry ───────────────────────────────────────
 //
 // Root component with auth gating and screen routing.
-// Integrates: offline sync, reminders, streaks, nutrition.
+// Integrates: offline sync, reminders, streaks, nutrition, news, search.
 //
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -19,6 +19,8 @@ import {
   AddProteinScreen,
   FoodSearchScreen,
 } from './src/features/nutrition';
+import { NewsHomeScreen, SavedArticlesScreen } from './src/features/news';
+import { SearchScreen } from './src/features/search';
 import { useAuthInit, useAuth } from './src/hooks/useAuth';
 import { useWorkoutStore } from './src/store';
 import { useNutritionStore } from './src/store/nutritionStore';
@@ -39,7 +41,10 @@ type AppScreen =
   | { name: 'progress' }
   | { name: 'nutrition' }
   | { name: 'addProtein' }
-  | { name: 'foodSearch' };
+  | { name: 'foodSearch' }
+  | { name: 'news' }
+  | { name: 'savedArticles' }
+  | { name: 'search' };
 
 type TabId = 'workout' | 'nutrition' | 'news' | 'profile';
 
@@ -87,16 +92,13 @@ function MainApp() {
   useEffect(() => {
     if (!user?.uid) return;
 
-    // Load all data
     loadExercises(user.uid);
     fetchTodayLogs(user.uid);
     fetchStreaks(user.uid);
     validateAndRefresh();
 
-    // Initialize offline sync system
     const cleanupOffline = initOffline();
 
-    // Load reminder state
     loadReminderSettings();
     loadActiveReminders();
 
@@ -123,14 +125,13 @@ function MainApp() {
     };
   }, [user?.uid]);
 
-  // ─── Reminder Evaluation (on foreground / periodic) ─────
+  // ─── Reminder Evaluation (on foreground) ────────────────
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     if (!user?.uid) return;
 
     const sub = AppState.addEventListener('change', (nextState) => {
-      // Evaluate reminders when app comes to foreground
       if (appState.current.match(/inactive|background/) && nextState === 'active') {
         const today = new Date().toISOString().split('T')[0];
         const hasWorkoutToday = workoutLogs.some((l) => {
@@ -157,14 +158,11 @@ function MainApp() {
 
   const handleTabPress = useCallback((tab: TabId) => {
     setActiveTab(tab);
-    if (tab === 'workout') {
-      setScreen({ name: 'home' });
-    } else if (tab === 'nutrition') {
-      setScreen({ name: 'nutrition' });
-    } else if (tab === 'profile') {
-      logout();
-    }
-  }, [logout]);
+    if (tab === 'workout') setScreen({ name: 'home' });
+    else if (tab === 'nutrition') setScreen({ name: 'nutrition' });
+    else if (tab === 'news') setScreen({ name: 'news' });
+    else if (tab === 'profile') setScreen({ name: 'search' });
+  }, []);
 
   // ─── Render Current Screen ──────────────────────────────
   const renderScreen = () => {
@@ -219,6 +217,29 @@ function MainApp() {
           />
         );
 
+      case 'news':
+        return (
+          <NewsHomeScreen
+            onViewCategory={() => {}}
+            onViewSaved={() => navigate({ name: 'savedArticles' })}
+          />
+        );
+
+      case 'savedArticles':
+        return (
+          <SavedArticlesScreen
+            onBack={() => navigate({ name: 'news' })}
+          />
+        );
+
+      case 'search':
+        return (
+          <SearchScreen
+            onBack={() => navigate({ name: 'home' })}
+            onViewExercise={(id) => navigate({ name: 'exerciseDetail', params: { exerciseId: id } })}
+          />
+        );
+
       case 'home':
       default:
         return (
@@ -235,47 +256,33 @@ function MainApp() {
     }
   };
 
-  const hideBottomNav = ['addWorkout', 'exerciseDetail', 'progress', 'addProtein', 'foodSearch'].includes(screen.name);
+  const hideBottomNav = ['addWorkout', 'exerciseDetail', 'progress', 'addProtein', 'foodSearch', 'savedArticles'].includes(screen.name);
   const showIndicators = !hideBottomNav;
 
   return (
     <View style={styles.mainContainer}>
-      {/* Sync Status Bar */}
       {showIndicators && <SyncStatusBar />}
-
-      {/* Reminder Banners */}
       {showIndicators && screen.name === 'home' && <ReminderBanner />}
 
-      {/* Main Content */}
       {renderScreen()}
 
-      {/* Bottom Nav Bar */}
       {!hideBottomNav && (
         <View style={styles.bottomNav}>
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => handleTabPress('workout')}
-          >
+          <TouchableOpacity style={styles.navItem} onPress={() => handleTabPress('workout')}>
             <Text style={[styles.navIcon, activeTab === 'workout' && styles.navActive]}>🏋️</Text>
             <Text style={[styles.navLabel, activeTab === 'workout' && styles.navActive]}>Workout</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => handleTabPress('nutrition')}
-          >
+          <TouchableOpacity style={styles.navItem} onPress={() => handleTabPress('nutrition')}>
             <Text style={[styles.navIcon, activeTab === 'nutrition' && styles.navActive]}>🥗</Text>
             <Text style={[styles.navLabel, activeTab === 'nutrition' && styles.navActive]}>Nutrition</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} disabled>
-            <Text style={styles.navIcon}>📰</Text>
-            <Text style={styles.navLabel}>News</Text>
+          <TouchableOpacity style={styles.navItem} onPress={() => handleTabPress('news')}>
+            <Text style={[styles.navIcon, activeTab === 'news' && styles.navActive]}>📰</Text>
+            <Text style={[styles.navLabel, activeTab === 'news' && styles.navActive]}>News</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.navItem}
-            onPress={() => handleTabPress('profile')}
-          >
-            <Text style={styles.navIcon}>👤</Text>
-            <Text style={styles.navLabel}>Profile</Text>
+          <TouchableOpacity style={styles.navItem} onPress={() => handleTabPress('profile')}>
+            <Text style={[styles.navIcon, activeTab === 'profile' && styles.navActive]}>🔍</Text>
+            <Text style={[styles.navLabel, activeTab === 'profile' && styles.navActive]}>Search</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -324,8 +331,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 16,
   },
-
-  // Bottom nav
   bottomNav: {
     flexDirection: 'row',
     backgroundColor: '#14141F',
