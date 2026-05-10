@@ -74,3 +74,25 @@ export {
   selectRecentSearches,
   selectIsSearching,
 } from './searchStore';
+export {
+  useProductStore,
+  selectProducts,
+  selectActiveProducts,
+  selectProductLoading,
+  selectFilteredProducts,
+  selectProductSpending,
+  selectExpiringProducts,
+} from './productStore';
+export {
+  useScoreStore,
+  selectCurrentScore,
+  selectTotalScore,
+  selectScoreTrend,
+  selectScoreBreakdown,
+} from './scoreStore';
+export {
+  useAnalyticsStore,
+  selectDailyAnalytics,
+  selectWeeklyAnalytics,
+  selectAnalyticsLoading,
+} from './analyticsStore';

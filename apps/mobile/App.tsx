@@ -1,7 +1,8 @@
 // ─── Aura App Entry ───────────────────────────────────────
 //
 // Root component with auth gating and screen routing.
-// Integrates: offline sync, reminders, streaks, nutrition, news, search.
+// Integrates: offline sync, reminders, streaks, nutrition,
+//             news, search, products, scoring, analytics.
 //
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
@@ -21,12 +22,16 @@ import {
 } from './src/features/nutrition';
 import { NewsHomeScreen, SavedArticlesScreen } from './src/features/news';
 import { SearchScreen } from './src/features/search';
+import { ProductVaultScreen, AddProductScreen } from './src/features/products';
 import { useAuthInit, useAuth } from './src/hooks/useAuth';
 import { useWorkoutStore } from './src/store';
 import { useNutritionStore } from './src/store/nutritionStore';
 import { useStreakStore } from './src/store/streakStore';
 import { useOfflineStore } from './src/store/offlineStore';
 import { useReminderStore } from './src/store/reminderStore';
+import { useProductStore } from './src/store/productStore';
+import { useScoreStore } from './src/store/scoreStore';
+import { useAnalyticsStore } from './src/store/analyticsStore';
 import { onEvent } from './src/services/events/emitEvent';
 import { SyncStatusBar } from './src/components/SyncStatusBar';
 import { ReminderBanner } from './src/components/ReminderBanner';
@@ -44,9 +49,11 @@ type AppScreen =
   | { name: 'foodSearch' }
   | { name: 'news' }
   | { name: 'savedArticles' }
-  | { name: 'search' };
+  | { name: 'search' }
+  | { name: 'products' }
+  | { name: 'addProduct' };
 
-type TabId = 'workout' | 'nutrition' | 'news' | 'profile';
+type TabId = 'workout' | 'nutrition' | 'news' | 'more';
 
 // ─── Auth Gate ────────────────────────────────────────────
 
@@ -69,6 +76,7 @@ function MainApp() {
   // ─── Stores ─────────────────────────────────────────────
   const loadExercises = useWorkoutStore((s) => s.loadExercises);
   const workoutLogs = useWorkoutStore((s) => s.logs);
+  const weeklyCount = useWorkoutStore((s) => s.weeklyCount);
 
   const fetchTodayLogs = useNutritionStore((s) => s.fetchTodayLogs);
   const todayProtein = useNutritionStore((s) => s.todayProtein);
@@ -81,6 +89,7 @@ function MainApp() {
   const validateAndRefresh = useStreakStore((s) => s.validateAndRefresh);
   const workoutStreak = useStreakStore((s) => s.workoutStreak);
   const proteinStreak = useStreakStore((s) => s.proteinStreak);
+  const activityStreak = useStreakStore((s) => s.activityStreak);
 
   const initOffline = useOfflineStore((s) => s.initialize);
 
@@ -88,26 +97,35 @@ function MainApp() {
   const loadActiveReminders = useReminderStore((s) => s.loadActiveReminders);
   const evaluateReminders = useReminderStore((s) => s.evaluate);
 
-  // ─── Initialize everything on mount ─────────────────────
+  const fetchProducts = useProductStore((s) => s.fetchProducts);
+
+  const calculateScore = useScoreStore((s) => s.calculate);
+
+  const loadAnalytics = useAnalyticsStore((s) => s.loadCached);
+  const buildDaily = useAnalyticsStore((s) => s.buildDaily);
+
+  // ─── Initialize on mount ────────────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
 
     loadExercises(user.uid);
     fetchTodayLogs(user.uid);
     fetchStreaks(user.uid);
+    fetchProducts(user.uid);
     validateAndRefresh();
 
     const cleanupOffline = initOffline();
 
     loadReminderSettings();
     loadActiveReminders();
+    loadAnalytics();
 
     return () => {
       cleanupOffline();
     };
   }, [user?.uid]);
 
-  // ─── Event Listeners for Streak Updates ─────────────────
+  // ─── Event Listeners ───────────────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
 
@@ -125,7 +143,7 @@ function MainApp() {
     };
   }, [user?.uid]);
 
-  // ─── Reminder Evaluation (on foreground) ────────────────
+  // ─── Score + Analytics on foreground ────────────────────
   const appState = useRef(AppState.currentState);
 
   useEffect(() => {
@@ -139,6 +157,7 @@ function MainApp() {
           return logDate === today;
         });
 
+        // Evaluate reminders
         evaluateReminders({
           hasWorkoutToday,
           workoutStreak,
@@ -146,12 +165,32 @@ function MainApp() {
           proteinTarget: nutritionGoals.dailyProteinTarget,
           proteinStreak,
         });
+
+        // Calculate score
+        calculateScore({
+          workoutsThisWeek: weeklyCount,
+          targetWorkoutsPerWeek: 4,
+          daysProteinMet: proteinStreak, // approximation
+          workoutStreak,
+          proteinStreak,
+          activityStreak,
+          hasLoggedToday: hasWorkoutToday || todayProtein > 0,
+          daysActiveThisWeek: Math.min(weeklyCount + (todayProtein > 0 ? 1 : 0), 7),
+        });
+
+        // Build daily analytics
+        buildDaily({
+          workoutsToday: hasWorkoutToday ? 1 : 0,
+          totalProtein: todayProtein,
+          proteinGoalMet,
+          currentScore: useScoreStore.getState().currentScore?.totalScore,
+        });
       }
       appState.current = nextState;
     });
 
     return () => sub.remove();
-  }, [user?.uid, workoutLogs.length, todayProtein, workoutStreak, proteinStreak]);
+  }, [user?.uid, workoutLogs.length, todayProtein, workoutStreak, proteinStreak, activityStreak, weeklyCount]);
 
   // ─── Navigation ─────────────────────────────────────────
   const navigate = useCallback((s: AppScreen) => setScreen(s), []);
@@ -161,10 +200,10 @@ function MainApp() {
     if (tab === 'workout') setScreen({ name: 'home' });
     else if (tab === 'nutrition') setScreen({ name: 'nutrition' });
     else if (tab === 'news') setScreen({ name: 'news' });
-    else if (tab === 'profile') setScreen({ name: 'search' });
+    else if (tab === 'more') setScreen({ name: 'products' });
   }, []);
 
-  // ─── Render Current Screen ──────────────────────────────
+  // ─── Render ─────────────────────────────────────────────
   const renderScreen = () => {
     switch (screen.name) {
       case 'addWorkout':
@@ -177,7 +216,6 @@ function MainApp() {
             onDiscard={() => navigate({ name: 'home' })}
           />
         );
-
       case 'exerciseDetail':
         return (
           <ExerciseDetailScreen
@@ -185,7 +223,6 @@ function MainApp() {
             onBack={() => navigate({ name: 'home' })}
           />
         );
-
       case 'progress':
         return (
           <ProgressScreen
@@ -193,7 +230,6 @@ function MainApp() {
             onViewExercise={(id) => navigate({ name: 'exerciseDetail', params: { exerciseId: id } })}
           />
         );
-
       case 'nutrition':
         return (
           <NutritionTodayScreen
@@ -201,7 +237,6 @@ function MainApp() {
             onSearchFood={() => navigate({ name: 'foodSearch' })}
           />
         );
-
       case 'addProtein':
         return (
           <AddProteinScreen
@@ -209,14 +244,12 @@ function MainApp() {
             onSearchFood={() => navigate({ name: 'foodSearch' })}
           />
         );
-
       case 'foodSearch':
         return (
           <FoodSearchScreen
             onComplete={() => navigate({ name: 'nutrition' })}
           />
         );
-
       case 'news':
         return (
           <NewsHomeScreen
@@ -224,14 +257,12 @@ function MainApp() {
             onViewSaved={() => navigate({ name: 'savedArticles' })}
           />
         );
-
       case 'savedArticles':
         return (
           <SavedArticlesScreen
             onBack={() => navigate({ name: 'news' })}
           />
         );
-
       case 'search':
         return (
           <SearchScreen
@@ -239,7 +270,19 @@ function MainApp() {
             onViewExercise={(id) => navigate({ name: 'exerciseDetail', params: { exerciseId: id } })}
           />
         );
-
+      case 'products':
+        return (
+          <ProductVaultScreen
+            onAddProduct={() => navigate({ name: 'addProduct' })}
+            onViewProduct={() => {}}
+          />
+        );
+      case 'addProduct':
+        return (
+          <AddProductScreen
+            onComplete={() => navigate({ name: 'products' })}
+          />
+        );
       case 'home':
       default:
         return (
@@ -256,7 +299,11 @@ function MainApp() {
     }
   };
 
-  const hideBottomNav = ['addWorkout', 'exerciseDetail', 'progress', 'addProtein', 'foodSearch', 'savedArticles'].includes(screen.name);
+  const hideBottomNav = [
+    'addWorkout', 'exerciseDetail', 'progress',
+    'addProtein', 'foodSearch', 'savedArticles',
+    'search', 'addProduct',
+  ].includes(screen.name);
   const showIndicators = !hideBottomNav;
 
   return (
@@ -280,9 +327,9 @@ function MainApp() {
             <Text style={[styles.navIcon, activeTab === 'news' && styles.navActive]}>📰</Text>
             <Text style={[styles.navLabel, activeTab === 'news' && styles.navActive]}>News</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.navItem} onPress={() => handleTabPress('profile')}>
-            <Text style={[styles.navIcon, activeTab === 'profile' && styles.navActive]}>🔍</Text>
-            <Text style={[styles.navLabel, activeTab === 'profile' && styles.navActive]}>Search</Text>
+          <TouchableOpacity style={styles.navItem} onPress={() => handleTabPress('more')}>
+            <Text style={[styles.navIcon, activeTab === 'more' && styles.navActive]}>📦</Text>
+            <Text style={[styles.navLabel, activeTab === 'more' && styles.navActive]}>Vault</Text>
           </TouchableOpacity>
         </View>
       )}

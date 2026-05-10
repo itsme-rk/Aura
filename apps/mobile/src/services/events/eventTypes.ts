@@ -14,6 +14,10 @@ export type AuraEventType =
   | 'STREAK_UPDATED'
   | 'ACTIVITY_LOGGED'
   | 'PRODUCT_SCANNED'
+  | 'PRODUCT_ADDED'
+  | 'PRODUCT_UPDATED'
+  | 'PRODUCT_FINISHED'
+  | 'PRODUCT_REPURCHASED'
   | 'NEWS_FETCHED'
   | 'ARTICLE_OPENED'
   | 'ARTICLE_SAVED'
@@ -25,7 +29,10 @@ export type AuraEventType =
   | 'OFFLINE_QUEUE_UPDATED'
   | 'REMINDER_TRIGGERED'
   | 'SEARCH_PERFORMED'
-  | 'SEARCH_RESULT_OPENED';
+  | 'SEARCH_RESULT_OPENED'
+  | 'SCORE_UPDATED'
+  | 'ANALYTICS_UPDATED'
+  | 'WEEKLY_SUMMARY_GENERATED';
 
 export interface AuraEvent<T = unknown> {
   type: AuraEventType;
